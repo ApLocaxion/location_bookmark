@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set FLUTTER_BIN=flutter
-set BASE_HREF=/
+set BASE_HREF=/location_bookmark/
 set COMMIT_MESSAGE=Update web build
 
 where %FLUTTER_BIN% >nul 2>nul
