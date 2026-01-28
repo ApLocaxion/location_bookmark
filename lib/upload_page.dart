@@ -177,9 +177,10 @@ class _UploadPageState extends State<UploadPage> {
     debugPrint(
       'UploadPage: apply picked image bytes=${bytes.length} lat=$latitude lon=$longitude ts=$timestamp',
     );
+    final shouldPersistImage = !kIsWeb;
     setState(() {
       _imageBytes = bytes;
-      _imagePath = kIsWeb ? base64Encode(bytes) : picked.path;
+      _imagePath = shouldPersistImage ? picked.path : null;
       _latitude = latitude;
       _longitude = longitude;
       _timestamp = timestamp;
@@ -187,7 +188,9 @@ class _UploadPageState extends State<UploadPage> {
       _xmpRaw = xmpRaw;
       _cameraSource = cameraSource;
       _loading = false;
-      _statusMessage = statusMessage;
+      _statusMessage = shouldPersistImage
+          ? statusMessage
+          : '$statusMessage (Image preview only on web; not saved to storage.)';
     });
   }
 

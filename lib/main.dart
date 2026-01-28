@@ -1,7 +1,4 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import 'bookmarks_page.dart';
 import 'login_page.dart';
@@ -9,9 +6,6 @@ import 'upload_page.dart';
 
 void main() {
   debugPrint('App: main');
-  if (kIsWeb) {
-    databaseFactory = databaseFactoryFfiWeb;
-  }
   runApp(const LocationBookmarkApp());
 }
 
