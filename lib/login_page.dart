@@ -7,6 +7,18 @@ class LoginPage extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('LoginPage: build');
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Locaxtion Bookmark'),
+        actions: [
+          IconButton(
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/', (route) => false),
+            icon: const Icon(Icons.home_outlined),
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -27,14 +39,14 @@ class LoginPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).pushReplacementNamed('/capture');
                   },
-                  child: const Text('Capture Photo (with current location)'),
+                  child: const Text('Capture Photo'),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pushReplacementNamed('/upload');
                   },
-                  child: const Text('Upload Photo (read EXIF from iPhone)'),
+                  child: const Text('Upload Photo'),
                 ),
                 const SizedBox(height: 12),
                 TextButton.icon(
@@ -46,7 +58,7 @@ class LoginPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Choose capture to save current GPS, or upload to read EXIF GPS.',
+                  'Choose capture to save current GPS.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

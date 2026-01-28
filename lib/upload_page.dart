@@ -257,9 +257,9 @@ class _UploadPageState extends State<UploadPage> {
     final message = (kIsWeb && imagePath == null)
         ? '$baseMessage (Image not saved.)'
         : baseMessage;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
     Navigator.of(context).pushReplacementNamed('/list');
   }
 
@@ -271,6 +271,13 @@ class _UploadPageState extends State<UploadPage> {
       appBar: AppBar(
         title: Text(isCapture ? 'Capture Photo' : 'Upload Photo'),
         actions: [
+          IconButton(
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/', (route) => false),
+            icon: const Icon(Icons.home_outlined),
+          ),
           IconButton(
             tooltip: 'View bookmarks',
             onPressed: () => Navigator.of(context).pushNamed('/list'),
@@ -284,11 +291,7 @@ class _UploadPageState extends State<UploadPage> {
           if (_imageBytes != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.memory(
-                _imageBytes!,
-                height: 220,
-                fit: BoxFit.cover,
-              ),
+              child: Image.memory(_imageBytes!, height: 220, fit: BoxFit.cover),
             )
           else
             Container(
@@ -303,9 +306,13 @@ class _UploadPageState extends State<UploadPage> {
           FilledButton.icon(
             onPressed: _loading
                 ? null
-                : (isCapture ? _captureImageWithLocation : _pickImageFromGallery),
+                : (isCapture
+                      ? _captureImageWithLocation
+                      : _pickImageFromGallery),
             icon: Icon(
-              isCapture ? Icons.photo_camera_outlined : Icons.photo_library_outlined,
+              isCapture
+                  ? Icons.photo_camera_outlined
+                  : Icons.photo_library_outlined,
             ),
             label: Text(
               _loading
@@ -313,6 +320,14 @@ class _UploadPageState extends State<UploadPage> {
                   : (isCapture ? 'Capture Photo' : 'Pick Image'),
             ),
           ),
+          if (!isCapture && kIsWeb) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Tip: On mobile Chrome, choose Files > DCIM/Camera to keep GPS. '
+              'Google Photos often strips location metadata.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 16),
           _MetadataCard(
             latitude: _latitude,
@@ -321,23 +336,7 @@ class _UploadPageState extends State<UploadPage> {
             statusMessage: _statusMessage,
             cameraSource: _cameraSource,
           ),
-          if (!isCapture && (_tagLines != null || _xmpRaw != null)) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => ExifDebugPage(
-                      tagLines: _tagLines ?? const [],
-                      xmpRaw: _xmpRaw,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.bug_report_outlined),
-              label: const Text('View EXIF debug'),
-            ),
-          ],
+
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _loading ? null : _saveBookmark,
@@ -367,10 +366,10 @@ class _MetadataCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     debugPrint('UploadPage: metadata card build');
-    final latText =
-        latitude == null ? 'Unknown' : latitude!.toStringAsFixed(6);
-    final lonText =
-        longitude == null ? 'Unknown' : longitude!.toStringAsFixed(6);
+    final latText = latitude == null ? 'Unknown' : latitude!.toStringAsFixed(6);
+    final lonText = longitude == null
+        ? 'Unknown'
+        : longitude!.toStringAsFixed(6);
     return Card(
       elevation: 0,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -425,10 +424,7 @@ _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
     if (xmpFallback != null) {
       return _GpsParseResult(xmpFallback, null);
     }
-    return const _GpsParseResult(
-      null,
-      'No GPS metadata found in this image.',
-    );
+    return const _GpsParseResult(null, 'No GPS metadata found in this image.');
   }
 
   final latValues = latTag.values;
@@ -447,10 +443,11 @@ _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
     if (xmpFallback != null) {
       return _GpsParseResult(xmpFallback, 'GPS parsed from XMP metadata.');
     }
-    return const _GpsParseResult(
-      null,
-      'GPS metadata is invalid (0/0 ratios).',
-    );
+    final warning = kIsWeb
+        ? 'GPS metadata is invalid (0/0 ratios). On mobile web, '
+              'pick the original file from Files > DCIM (Google Photos may strip GPS).'
+        : 'GPS metadata is invalid (0/0 ratios).';
+    return _GpsParseResult(null, warning);
   }
 
   final latitude = _convertToDegrees(latList);
@@ -463,12 +460,14 @@ _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
     return const _GpsParseResult(null, 'Unable to parse GPS metadata.');
   }
 
-  final latRef = _firstTag(tags, ['GPS GPSLatitudeRef', 'GPSLatitudeRef'])
-      ?.printable
-      .toUpperCase();
-  final lonRef = _firstTag(tags, ['GPS GPSLongitudeRef', 'GPSLongitudeRef'])
-      ?.printable
-      .toUpperCase();
+  final latRef = _firstTag(tags, [
+    'GPS GPSLatitudeRef',
+    'GPSLatitudeRef',
+  ])?.printable.toUpperCase();
+  final lonRef = _firstTag(tags, [
+    'GPS GPSLongitudeRef',
+    'GPSLongitudeRef',
+  ])?.printable.toUpperCase();
 
   final finalLat = (latRef == 'S') ? -latitude : latitude;
   final finalLon = (lonRef == 'W') ? -longitude : longitude;
@@ -478,14 +477,11 @@ _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
 
 DateTime? _extractTimestamp(Map<String, IfdTag> tags) {
   debugPrint('UploadPage: extract timestamp');
-  final tag = _firstTag(
-    tags,
-    [
-      'EXIF DateTimeOriginal',
-      'EXIF DateTimeDigitized',
-      'Image DateTime',
-    ],
-  );
+  final tag = _firstTag(tags, [
+    'EXIF DateTimeOriginal',
+    'EXIF DateTimeDigitized',
+    'Image DateTime',
+  ]);
   final printable = tag?.printable;
   if (printable == null) return null;
 
@@ -576,8 +572,7 @@ void _logLongString(String prefix, String text, {int chunkSize = 800}) {
 
 List<String> _dumpExifTags(Map<String, IfdTag> tags) {
   debugPrint('UploadPage: dump EXIF tags');
-  final entries = tags.entries.toList()
-    ..sort((a, b) => a.key.compareTo(b.key));
+  final entries = tags.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
   return entries
       .map((entry) => '${entry.key}: ${entry.value.printable}')
       .toList(growable: false);
@@ -608,17 +603,11 @@ _GpsData? _extractGpsFromXmp(String? xmpRaw) {
 }
 
 String? _readXmpValue(String xmpRaw, String key) {
-  final attrPattern = RegExp(
-    '$key\\s*=\\s*\"([^\"]+)\"',
-    caseSensitive: false,
-  );
+  final attrPattern = RegExp('$key\\s*=\\s*\"([^\"]+)\"', caseSensitive: false);
   final attrMatch = attrPattern.firstMatch(xmpRaw);
   if (attrMatch != null) return attrMatch.group(1);
 
-  final nodePattern = RegExp(
-    '<$key>([^<]+)</$key>',
-    caseSensitive: false,
-  );
+  final nodePattern = RegExp('<$key>([^<]+)</$key>', caseSensitive: false);
   final nodeMatch = nodePattern.firstMatch(xmpRaw);
   return nodeMatch?.group(1);
 }

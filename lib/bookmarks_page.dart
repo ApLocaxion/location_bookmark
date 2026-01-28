@@ -36,6 +36,12 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
         title: const Text('Saved Locations'),
         actions: [
           IconButton(
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(context)
+                .pushNamedAndRemoveUntil('/', (route) => false),
+            icon: const Icon(Icons.home_outlined),
+          ),
+          IconButton(
             tooltip: 'View map',
             onPressed: () => Navigator.of(context).pushNamed('/map'),
             icon: const Icon(Icons.map_outlined),
@@ -70,7 +76,7 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
                   item.latitude != null && item.longitude != null;
               final locationText = hasLocation
                   ? '${item.latitude!.toStringAsFixed(5)}, '
-                      '${item.longitude!.toStringAsFixed(5)}'
+                        '${item.longitude!.toStringAsFixed(5)}'
                   : 'Unknown location';
               return Card(
                 child: ListTile(
@@ -103,6 +109,103 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
 class BookmarkMapPage extends StatelessWidget {
   const BookmarkMapPage({super.key});
 
+  void _showNearbyPhotos(
+    BuildContext context,
+    List<Bookmark> bookmarks,
+    LatLng center,
+  ) {
+    const nearbyRadiusMeters = 5000.0;
+    final distance = const Distance();
+    final photos =
+        bookmarks
+            .where(
+              (bookmark) =>
+                  bookmark.imagePath != null &&
+                  bookmark.latitude != null &&
+                  bookmark.longitude != null,
+            )
+            .map((bookmark) {
+              final point = LatLng(bookmark.latitude!, bookmark.longitude!);
+              final meters = distance.as(LengthUnit.Meter, center, point);
+              return _NearbyPhoto(bookmark: bookmark, meters: meters);
+            })
+            .toList()
+          ..sort((a, b) => a.meters.compareTo(b.meters));
+
+    if (photos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No photo bookmarks with location data.')),
+      );
+      return;
+    }
+
+    final nearbyPhotos = photos
+        .where((photo) => photo.meters <= nearbyRadiusMeters)
+        .toList();
+    final displayPhotos = nearbyPhotos.isNotEmpty ? nearbyPhotos : photos;
+    final titleSuffix = nearbyPhotos.isNotEmpty ? 'within 5 km' : 'all photos';
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        final sheetHeight = MediaQuery.of(context).size.height * 0.6;
+        return SafeArea(
+          child: SizedBox(
+            height: sheetHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Nearby photos ($titleSuffix)',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: displayPhotos.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final entry = displayPhotos[index];
+                        final bookmark = entry.bookmark;
+                        final distanceKm = entry.meters / 1000.0;
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: buildBookmarkImage(bookmark.imagePath!),
+                            ),
+                          ),
+                          title: Text(
+                            '${bookmark.latitude!.toStringAsFixed(5)}, '
+                            '${bookmark.longitude!.toStringAsFixed(5)}',
+                          ),
+                          subtitle: Text(
+                            '${distanceKm.toStringAsFixed(2)} km away',
+                          ),
+                          onTap: () => _showBookmarkDetails(context, bookmark),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildPhotoMarker(BuildContext context, Bookmark bookmark) {
     if (bookmark.imagePath == null) {
       return const Icon(Icons.location_on, color: Colors.red, size: 36);
@@ -131,10 +234,7 @@ class BookmarkMapPage extends StatelessWidget {
     );
   }
 
-  Widget _pillButton({
-    required Widget child,
-    VoidCallback? onTap,
-  }) {
+  Widget _pillButton({required Widget child, VoidCallback? onTap}) {
     return Material(
       color: Colors.white,
       elevation: 6,
@@ -160,7 +260,7 @@ class BookmarkMapPage extends StatelessWidget {
             bookmark.latitude != null && bookmark.longitude != null;
         final locationText = hasLocation
             ? '${bookmark.latitude!.toStringAsFixed(5)}, '
-                '${bookmark.longitude!.toStringAsFixed(5)}'
+                  '${bookmark.longitude!.toStringAsFixed(5)}'
             : 'Unknown location';
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -197,7 +297,17 @@ class BookmarkMapPage extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('BookmarkMapPage: build');
     return Scaffold(
-      appBar: AppBar(title: const Text('Location Map')),
+      appBar: AppBar(
+        title: const Text('Location Map'),
+        actions: [
+          IconButton(
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(context)
+                .pushNamedAndRemoveUntil('/', (route) => false),
+            icon: const Icon(Icons.home_outlined),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<Bookmark>>(
         future: BookmarkDatabase.instance.fetchBookmarks(),
         builder: (context, snapshot) {
@@ -214,8 +324,8 @@ class BookmarkMapPage extends StatelessWidget {
 
           final locations = bookmarks
               .where(
-                (bookmark) => bookmark.latitude != null &&
-                    bookmark.longitude != null,
+                (bookmark) =>
+                    bookmark.latitude != null && bookmark.longitude != null,
               )
               .toList();
           if (locations.isEmpty) {
@@ -246,10 +356,7 @@ class BookmarkMapPage extends StatelessWidget {
           return Stack(
             children: [
               FlutterMap(
-                options: MapOptions(
-                  initialCenter: center,
-                  initialZoom: 12,
-                ),
+                options: MapOptions(initialCenter: center, initialZoom: 12),
                 children: [
                   TileLayer(
                     urlTemplate:
@@ -268,28 +375,14 @@ class BookmarkMapPage extends StatelessWidget {
                   child: const Icon(Icons.close),
                 ),
               ),
-              Positioned(
-                right: 16,
-                top: 16,
-                child: _pillButton(
-                  onTap: () {},
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.map_outlined),
-                      SizedBox(height: 6),
-                      Icon(Icons.near_me_outlined),
-                    ],
-                  ),
-                ),
-              ),
+
               Positioned(
                 left: 24,
                 right: 24,
                 bottom: 24,
                 child: Center(
                   child: _pillButton(
-                    onTap: () {},
+                    onTap: () => _showNearbyPhotos(context, bookmarks, center),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
@@ -307,4 +400,11 @@ class BookmarkMapPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NearbyPhoto {
+  const _NearbyPhoto({required this.bookmark, required this.meters});
+
+  final Bookmark bookmark;
+  final double meters;
 }
