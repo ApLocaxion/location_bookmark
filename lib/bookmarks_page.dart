@@ -102,6 +102,96 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
 class BookmarkMapPage extends StatelessWidget {
   const BookmarkMapPage({super.key});
 
+  Widget _buildPhotoMarker(BuildContext context, Bookmark bookmark) {
+    if (bookmark.imagePath == null) {
+      return const Icon(Icons.location_on, color: Colors.red, size: 36);
+    }
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: buildBookmarkImage(bookmark.imagePath!),
+        ),
+      ),
+    );
+  }
+
+  Widget _pillButton({
+    required Widget child,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      elevation: 6,
+      shadowColor: Colors.black.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  void _showBookmarkDetails(BuildContext context, Bookmark bookmark) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final hasLocation =
+            bookmark.latitude != null && bookmark.longitude != null;
+        final locationText = hasLocation
+            ? '${bookmark.latitude!.toStringAsFixed(5)}, '
+                '${bookmark.longitude!.toStringAsFixed(5)}'
+            : 'Unknown location';
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bookmark Details',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(locationText),
+              Text(bookmark.timestamp.toLocal().toString()),
+              if (bookmark.imagePath != null) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 180,
+                    width: double.infinity,
+                    child: buildBookmarkImage(bookmark.imagePath!),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     debugPrint('BookmarkMapPage: build');
@@ -136,10 +226,13 @@ class BookmarkMapPage extends StatelessWidget {
           final markers = locations
               .map(
                 (bookmark) => Marker(
-                  width: 40,
-                  height: 40,
+                  width: 64,
+                  height: 64,
                   point: LatLng(bookmark.latitude!, bookmark.longitude!),
-                  child: const Icon(Icons.location_on, color: Colors.red),
+                  child: GestureDetector(
+                    onTap: () => _showBookmarkDetails(context, bookmark),
+                    child: _buildPhotoMarker(context, bookmark),
+                  ),
                 ),
               )
               .toList();
@@ -149,14 +242,63 @@ class BookmarkMapPage extends StatelessWidget {
             locations.first.longitude!,
           );
 
-          return FlutterMap(
-            options: MapOptions(initialCenter: center, initialZoom: 12),
+          return Stack(
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.location_bookmark',
+              FlutterMap(
+                options: MapOptions(
+                  initialCenter: center,
+                  initialZoom: 12,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.location_bookmark',
+                  ),
+                  MarkerLayer(markers: markers),
+                ],
               ),
-              MarkerLayer(markers: markers),
+              Positioned(
+                left: 16,
+                top: 16,
+                child: _pillButton(
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: const Icon(Icons.close),
+                ),
+              ),
+              Positioned(
+                right: 16,
+                top: 16,
+                child: _pillButton(
+                  onTap: () {},
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.map_outlined),
+                      SizedBox(height: 6),
+                      Icon(Icons.near_me_outlined),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 24,
+                child: Center(
+                  child: _pillButton(
+                    onTap: () {},
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.photo_library_outlined),
+                        SizedBox(width: 8),
+                        Text('Show Nearby Photos'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
         },

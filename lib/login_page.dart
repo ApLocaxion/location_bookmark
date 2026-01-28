@@ -37,6 +37,14 @@ class LoginPage extends StatelessWidget {
                   child: const Text('Upload Photo (read EXIF from iPhone)'),
                 ),
                 const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/map');
+                  },
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('View Map'),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   'Choose capture to save current GPS, or upload to read EXIF GPS.',
                   textAlign: TextAlign.center,
