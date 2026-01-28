@@ -5,10 +5,12 @@ import 'package:exif/exif.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:heckofaheic/heckofaheic.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'bookmark_data.dart';
 import 'exif_debug_page.dart';
+import 'image_store.dart';
 
 enum UploadMode { capture, upload }
 
@@ -53,6 +55,7 @@ class _UploadPageState extends State<UploadPage> {
       }
 
       final bytes = await picked.readAsBytes();
+      final displayBytes = await _prepareBytesForDisplay(bytes);
       final tags = await readExifFromBytes(bytes);
 
       final tagLines = _dumpExifTags(tags);
@@ -77,7 +80,7 @@ class _UploadPageState extends State<UploadPage> {
 
       _applyPickedImage(
         picked: picked,
-        bytes: bytes,
+        bytes: displayBytes,
         latitude: gpsResult.data?.latitude,
         longitude: gpsResult.data?.longitude,
         timestamp: timestamp,
@@ -116,6 +119,7 @@ class _UploadPageState extends State<UploadPage> {
       }
 
       final bytes = await picked.readAsBytes();
+      final displayBytes = await _prepareBytesForDisplay(bytes);
       final position = await _tryGetCurrentPosition();
       final timestamp = DateTime.now();
       final statusMessage = position == null
@@ -124,7 +128,7 @@ class _UploadPageState extends State<UploadPage> {
 
       _applyPickedImage(
         picked: picked,
-        bytes: bytes,
+        bytes: displayBytes,
         latitude: position?.latitude,
         longitude: position?.longitude,
         timestamp: timestamp,
@@ -140,6 +144,32 @@ class _UploadPageState extends State<UploadPage> {
         _statusMessage = 'Failed to capture image: $error';
       });
     }
+  }
+
+  Future<Uint8List> _prepareBytesForDisplay(Uint8List bytes) async {
+    if (!kIsWeb) {
+      return bytes;
+    }
+
+    try {
+      if (HeckOfAHeic.isHEIC(bytes)) {
+        final converted = await HeckOfAHeic.convert(
+          bytes,
+          toType: TargetType.jpeg,
+          jpegQuality: 0.9,
+        );
+        if (converted.isNotEmpty) {
+          debugPrint(
+            'UploadPage: converted HEIC to JPEG bytes=${converted.length}',
+          );
+          return converted;
+        }
+      }
+    } catch (error) {
+      debugPrint('UploadPage: HEIC conversion failed: $error');
+    }
+
+    return bytes;
   }
 
   Future<Position?> _tryGetCurrentPosition() async {
@@ -177,10 +207,9 @@ class _UploadPageState extends State<UploadPage> {
     debugPrint(
       'UploadPage: apply picked image bytes=${bytes.length} lat=$latitude lon=$longitude ts=$timestamp',
     );
-    final shouldPersistImage = !kIsWeb;
     setState(() {
       _imageBytes = bytes;
-      _imagePath = shouldPersistImage ? picked.path : null;
+      _imagePath = kIsWeb ? null : picked.path;
       _latitude = latitude;
       _longitude = longitude;
       _timestamp = timestamp;
@@ -188,9 +217,7 @@ class _UploadPageState extends State<UploadPage> {
       _xmpRaw = xmpRaw;
       _cameraSource = cameraSource;
       _loading = false;
-      _statusMessage = shouldPersistImage
-          ? statusMessage
-          : '$statusMessage (Image preview only on web; not saved to storage.)';
+      _statusMessage = statusMessage;
     });
   }
 
@@ -205,24 +232,33 @@ class _UploadPageState extends State<UploadPage> {
       return;
     }
 
+    var imagePath = _imagePath;
+    if (kIsWeb && imagePath == null && _imageBytes != null) {
+      try {
+        imagePath = await saveImageBytes(_imageBytes!);
+      } catch (error) {
+        debugPrint('UploadPage: save image failed: $error');
+      }
+    }
+
     final bookmark = Bookmark(
       latitude: _latitude,
       longitude: _longitude,
       timestamp: _timestamp!,
-      imagePath: _imagePath,
+      imagePath: imagePath,
     );
 
     await BookmarkDatabase.instance.insertBookmark(bookmark);
 
     if (!mounted) return;
+    final baseMessage = (_latitude == null || _longitude == null)
+        ? 'Bookmark saved without location data.'
+        : 'Bookmark saved.';
+    final message = (kIsWeb && imagePath == null)
+        ? '$baseMessage (Image not saved.)'
+        : baseMessage;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          (_latitude == null || _longitude == null)
-              ? 'Bookmark saved without location data.'
-              : 'Bookmark saved.',
-        ),
-      ),
+      SnackBar(content: Text(message)),
     );
     Navigator.of(context).pushReplacementNamed('/list');
   }
@@ -248,7 +284,11 @@ class _UploadPageState extends State<UploadPage> {
           if (_imageBytes != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.memory(_imageBytes!, height: 220, fit: BoxFit.cover),
+              child: Image.memory(
+                _imageBytes!,
+                height: 220,
+                fit: BoxFit.cover,
+              ),
             )
           else
             Container(

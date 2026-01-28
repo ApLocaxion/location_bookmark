@@ -33,6 +33,16 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script src="heic2any.min.js"></script>
+  <script>
+    window.executeHeic2any = async function (blob) {
+      return await heic2any({
+        blob: blob,
+        toType: "image/jpeg",
+        quality: 0.9
+      });
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

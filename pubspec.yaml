@@ -41,6 +41,8 @@ dependencies:
   path_provider: ^2.1.5
   sqflite: ^2.3.3+1
   flutter_map: ^7.0.2
+  flutter_map_cancellable_tile_provider: ^3.0.2
+  heckofaheic: ^0.0.6
   latlong2: ^0.9.1
 
 dev_dependencies:

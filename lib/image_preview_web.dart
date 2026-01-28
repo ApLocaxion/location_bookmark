@@ -3,18 +3,29 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'image_store.dart';
+
 Widget buildBookmarkImage(String imagePath) {
-  final data = imagePath.startsWith('data:')
-      ? imagePath.split(',').last
-      : imagePath;
-  Uint8List? bytes;
-  try {
-    bytes = base64Decode(data);
-  } catch (_) {
-    bytes = null;
+  if (imagePath.startsWith('idb:')) {
+    return FutureBuilder<Uint8List?>(
+      future: loadImageBytes(imagePath),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) {
+          return const Text('Image unavailable on web.');
+        }
+        return Image.memory(bytes);
+      },
+    );
   }
-  if (bytes == null || bytes.isEmpty) {
+
+  try {
+    final data = imagePath.startsWith('data:')
+        ? imagePath.split(',').last
+        : imagePath;
+    final bytes = base64Decode(data);
+    return Image.memory(bytes);
+  } catch (_) {
     return const Text('Image unavailable on web.');
   }
-  return Image.memory(bytes);
 }
