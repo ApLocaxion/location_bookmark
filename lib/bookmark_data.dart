@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -5,15 +6,15 @@ import 'package:sqflite/sqflite.dart';
 class Bookmark {
   Bookmark({
     this.id,
-    required this.latitude,
-    required this.longitude,
+    this.latitude,
+    this.longitude,
     required this.timestamp,
     this.imagePath,
   });
 
   final int? id;
-  final double latitude;
-  final double longitude;
+  final double? latitude;
+  final double? longitude;
   final DateTime timestamp;
   final String? imagePath;
 
@@ -30,8 +31,8 @@ class Bookmark {
   static Bookmark fromMap(Map<String, Object?> map) {
     return Bookmark(
       id: map['id'] as int?,
-      latitude: (map['latitude'] as num).toDouble(),
-      longitude: (map['longitude'] as num).toDouble(),
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
       timestamp: DateTime.parse(map['timestamp'] as String),
       imagePath: map['image_path'] as String?,
     );
@@ -43,7 +44,7 @@ class BookmarkDatabase {
 
   static final BookmarkDatabase instance = BookmarkDatabase._();
   static const _dbName = 'location_bookmarks.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   Database? _database;
 
@@ -54,31 +55,57 @@ class BookmarkDatabase {
   }
 
   Future<Database> _initDatabase() async {
+    if (kIsWeb) {
+      return openDatabase(
+        _dbName,
+        version: _dbVersion,
+        onCreate: (db, version) async {
+          await _createSchema(db);
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          await db.execute('DROP TABLE IF EXISTS bookmarks');
+          await _createSchema(db);
+        },
+      );
+    }
+
     final directory = await getApplicationDocumentsDirectory();
     final dbPath = path.join(directory.path, _dbName);
     return openDatabase(
       dbPath,
       version: _dbVersion,
       onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE bookmarks(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            timestamp TEXT NOT NULL,
-            image_path TEXT
-          )
-        ''');
+        await _createSchema(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        await db.execute('DROP TABLE IF EXISTS bookmarks');
+        await _createSchema(db);
       },
     );
   }
 
+  Future<void> _createSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE bookmarks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        latitude REAL,
+        longitude REAL,
+        timestamp TEXT NOT NULL,
+        image_path TEXT
+      )
+    ''');
+  }
+
   Future<int> insertBookmark(Bookmark bookmark) async {
+    debugPrint(
+      'BookmarkDatabase: insert lat=${bookmark.latitude} lon=${bookmark.longitude} ts=${bookmark.timestamp}',
+    );
     final db = await database;
     return db.insert('bookmarks', bookmark.toMap());
   }
 
   Future<List<Bookmark>> fetchBookmarks() async {
+    debugPrint('BookmarkDatabase: fetch bookmarks');
     final db = await database;
     final rows = await db.query('bookmarks', orderBy: 'timestamp DESC');
     return rows.map(Bookmark.fromMap).toList();

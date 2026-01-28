@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to capture a photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to pick a photo and read its metadata.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need access to save photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to save a GPS bookmark.</string>
 </dict>
 </plist>

@@ -5,6 +5,7 @@ class LoginPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('LoginPage: build');
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -22,30 +23,22 @@ class LoginPage extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 24),
-                const TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const TextField(
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
                 FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/capture');
+                  },
+                  child: const Text('Capture Photo (with current location)'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pushReplacementNamed('/upload');
                   },
-                  child: const Text('Log in'),
+                  child: const Text('Upload Photo (read EXIF from iPhone)'),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Dummy login screen - no authentication required.',
+                  'Choose capture to save current GPS, or upload to read EXIF GPS.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'bookmark_data.dart';
+import 'image_preview.dart';
 
 class BookmarkListPage extends StatefulWidget {
   const BookmarkListPage({super.key});
@@ -19,15 +18,18 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('BookmarkListPage: initState');
     _reload();
   }
 
   void _reload() {
+    debugPrint('BookmarkListPage: reload');
     _bookmarksFuture = BookmarkDatabase.instance.fetchBookmarks();
   }
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('BookmarkListPage: build');
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saved Locations'),
@@ -63,13 +65,16 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final item = bookmarks[index];
+              final hasLocation =
+                  item.latitude != null && item.longitude != null;
+              final locationText = hasLocation
+                  ? '${item.latitude!.toStringAsFixed(5)}, '
+                      '${item.longitude!.toStringAsFixed(5)}'
+                  : 'Unknown location';
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.place_outlined),
-                  title: Text(
-                    '${item.latitude.toStringAsFixed(5)}, '
-                    '${item.longitude.toStringAsFixed(5)}',
-                  ),
+                  title: Text(locationText),
                   subtitle: Text(item.timestamp.toLocal().toString()),
                   trailing: item.imagePath == null
                       ? null
@@ -79,7 +84,7 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
                             showDialog(
                               context: context,
                               builder: (context) => AlertDialog(
-                                content: Image.file(File(item.imagePath!)),
+                                content: buildBookmarkImage(item.imagePath!),
                               ),
                             );
                           },
@@ -99,6 +104,7 @@ class BookmarkMapPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('BookmarkMapPage: build');
     return Scaffold(
       appBar: AppBar(title: const Text('Location Map')),
       body: FutureBuilder<List<Bookmark>>(
@@ -115,20 +121,32 @@ class BookmarkMapPage extends StatelessWidget {
             return const Center(child: Text('No bookmarks to display.'));
           }
 
-          final markers = bookmarks
+          final locations = bookmarks
+              .where(
+                (bookmark) => bookmark.latitude != null &&
+                    bookmark.longitude != null,
+              )
+              .toList();
+          if (locations.isEmpty) {
+            return const Center(
+              child: Text('No bookmarks with location data to display.'),
+            );
+          }
+
+          final markers = locations
               .map(
                 (bookmark) => Marker(
                   width: 40,
                   height: 40,
-                  point: LatLng(bookmark.latitude, bookmark.longitude),
+                  point: LatLng(bookmark.latitude!, bookmark.longitude!),
                   child: const Icon(Icons.location_on, color: Colors.red),
                 ),
               )
               .toList();
 
           final center = LatLng(
-            bookmarks.first.latitude,
-            bookmarks.first.longitude,
+            locations.first.latitude!,
+            locations.first.longitude!,
           );
 
           return FlutterMap(
