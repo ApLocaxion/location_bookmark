@@ -92,10 +92,18 @@ class BookmarkApiService {
     required double latitude,
     required double longitude,
     required String imageBase64,
+    String? thumbnailBase64,
   }) async {
     final uri = Uri.parse(_endpoint);
     final idToken = await _readIdToken();
-    final payload = {'lat': latitude, 'log': longitude, 'image': imageBase64};
+    final payload = <String, dynamic>{
+      'lat': latitude,
+      'log': longitude,
+      'image': imageBase64,
+    };
+    if (thumbnailBase64 != null && thumbnailBase64.trim().isNotEmpty) {
+      payload['thumbnail'] = thumbnailBase64;
+    }
 
     var response = await _postWithToken(
       uri: uri,
@@ -198,6 +206,13 @@ class BookmarkApiService {
     final imagePath =
         map['imagePath'] ?? map['image'] ?? map['image_url'] ?? map['imageUrl'];
     final resolvedImagePath = _resolveImagePath(imagePath);
+    final thumbnailPath =
+        map['thumbnailPath'] ??
+        map['thumbnail'] ??
+        map['thumb'] ??
+        map['thumbnail_url'] ??
+        map['thumb_url'];
+    final resolvedThumbnailPath = _resolveImagePath(thumbnailPath);
     final timestampRaw =
         map['createdAt'] ?? map['created_at'] ?? map['timestamp'];
     final timestamp = _parseTimestamp(timestampRaw) ?? DateTime.now();
@@ -208,6 +223,7 @@ class BookmarkApiService {
       longitude: log,
       timestamp: timestamp,
       imagePath: resolvedImagePath,
+      thumbnailPath: resolvedThumbnailPath ?? resolvedImagePath,
     );
   }
 

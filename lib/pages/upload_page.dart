@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:exif/exif.dart';
 import 'package:flutter/foundation.dart';
@@ -233,6 +234,18 @@ class _UploadPageState extends State<UploadPage> {
         'UploadPage: preparing upload bytes=$imageByteLength web=$kIsWeb',
       );
       final imageBase64 = base64Encode(_imageBytes!);
+      String? thumbnailBase64;
+      try {
+        final thumbnailBytes = await _createThumbnailBytes(_imageBytes!);
+        if (thumbnailBytes != null && thumbnailBytes.isNotEmpty) {
+          thumbnailBase64 = base64Encode(thumbnailBytes);
+          debugPrint(
+            'UploadPage: thumbnail bytes=${thumbnailBytes.length} base64=${thumbnailBase64.length}',
+          );
+        }
+      } catch (error) {
+        debugPrint('UploadPage: thumbnail generation failed: $error');
+      }
       debugPrint(
         'UploadPage: encoded image base64 length=${imageBase64.length}',
       );
@@ -240,6 +253,7 @@ class _UploadPageState extends State<UploadPage> {
         latitude: _latitude!,
         longitude: _longitude!,
         imageBase64: imageBase64,
+        thumbnailBase64: thumbnailBase64,
       );
       if (!mounted) return;
       setState(() {
@@ -262,6 +276,34 @@ class _UploadPageState extends State<UploadPage> {
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     }
+  }
+
+  Future<Uint8List?> _createThumbnailBytes(
+    Uint8List bytes, {
+    int maxSize = 480,
+  }) async {
+    final baseCodec = await ui.instantiateImageCodec(bytes);
+    final baseFrame = await baseCodec.getNextFrame();
+    final width = baseFrame.image.width;
+    final height = baseFrame.image.height;
+    baseFrame.image.dispose();
+    if (width <= maxSize && height <= maxSize) {
+      return null;
+    }
+    final scale = width >= height ? maxSize / width : maxSize / height;
+    final targetWidth = (width * scale).round();
+    final targetHeight = (height * scale).round();
+    final thumbCodec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+    final thumbFrame = await thumbCodec.getNextFrame();
+    final data = await thumbFrame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    thumbFrame.image.dispose();
+    return data?.buffer.asUint8List();
   }
 
   String _friendlySaveError(Object error) {

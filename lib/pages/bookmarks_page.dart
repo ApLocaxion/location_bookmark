@@ -229,6 +229,8 @@ class BookmarkMapPage extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final entry = displayPhotos[index];
                         final bookmark = entry.bookmark;
+                        final previewPath =
+                            bookmark.thumbnailPath ?? bookmark.imagePath!;
                         final distanceKm = entry.meters / 1000.0;
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(
@@ -240,7 +242,7 @@ class BookmarkMapPage extends StatelessWidget {
                             child: SizedBox(
                               width: 56,
                               height: 56,
-                              child: buildBookmarkImage(bookmark.imagePath!),
+                              child: buildBookmarkImage(previewPath),
                             ),
                           ),
                           title: Text(
@@ -268,6 +270,7 @@ class BookmarkMapPage extends StatelessWidget {
     if (bookmark.imagePath == null) {
       return const Icon(Icons.location_on, color: Colors.red, size: 36);
     }
+    final previewPath = bookmark.thumbnailPath ?? bookmark.imagePath!;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -286,7 +289,7 @@ class BookmarkMapPage extends StatelessWidget {
         child: SizedBox(
           width: 52,
           height: 52,
-          child: buildBookmarkImage(bookmark.imagePath!),
+          child: buildBookmarkImage(previewPath),
         ),
       ),
     );

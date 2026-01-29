@@ -11,6 +11,7 @@ class Bookmark {
     this.longitude,
     required this.timestamp,
     this.imagePath,
+    this.thumbnailPath,
   });
 
   final String? uuid;
@@ -19,6 +20,7 @@ class Bookmark {
   final double? longitude;
   final DateTime timestamp;
   final String? imagePath;
+  final String? thumbnailPath;
 
   Map<String, Object?> toMap() {
     return {
@@ -28,6 +30,7 @@ class Bookmark {
       'longitude': longitude,
       'timestamp': timestamp.toIso8601String(),
       'image_path': imagePath,
+      'thumbnail_path': thumbnailPath,
     };
   }
 
@@ -39,6 +42,7 @@ class Bookmark {
       longitude: (map['longitude'] as num?)?.toDouble(),
       timestamp: DateTime.parse(map['timestamp'] as String),
       imagePath: map['image_path'] as String?,
+      thumbnailPath: map['thumbnail_path'] as String?,
     );
   }
 }
@@ -62,6 +66,7 @@ class BookmarkDatabase {
         longitude: bookmark.longitude,
         timestamp: bookmark.timestamp,
         imagePath: bookmark.imagePath,
+        thumbnailPath: bookmark.thumbnailPath,
       ),
     );
     try {
@@ -78,6 +83,7 @@ class BookmarkDatabase {
             longitude: bookmark.longitude,
             timestamp: bookmark.timestamp,
             imagePath: null,
+            thumbnailPath: null,
           ),
         );
         _saveItems(items);
