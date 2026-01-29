@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 class Bookmark {
   Bookmark({
+    this.uuid,
     this.id,
     this.latitude,
     this.longitude,
@@ -12,6 +13,7 @@ class Bookmark {
     this.imagePath,
   });
 
+  final String? uuid;
   final int? id;
   final double? latitude;
   final double? longitude;
@@ -20,6 +22,7 @@ class Bookmark {
 
   Map<String, Object?> toMap() {
     return {
+      'uuid': uuid,
       'id': id,
       'latitude': latitude,
       'longitude': longitude,
@@ -30,6 +33,7 @@ class Bookmark {
 
   static Bookmark fromMap(Map<String, Object?> map) {
     return Bookmark(
+      uuid: map['uuid'] as String?,
       id: map['id'] as int?,
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),

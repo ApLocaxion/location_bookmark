@@ -3,8 +3,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'bookmark_data.dart';
-import 'image_preview.dart';
+import '../data/bookmark_data.dart';
+import '../services/bookmark_api_service.dart';
+import '../services/image_preview.dart';
 
 class BookmarkListPage extends StatefulWidget {
   const BookmarkListPage({super.key});
@@ -25,7 +26,53 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
 
   void _reload() {
     debugPrint('BookmarkListPage: reload');
-    _bookmarksFuture = BookmarkDatabase.instance.fetchBookmarks();
+    setState(() {
+      _bookmarksFuture = BookmarkApiService.fetchBookmarks();
+    });
+  }
+
+  Future<void> _confirmDelete(Bookmark item) async {
+    final uuid = item.uuid;
+    if (uuid == null || uuid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot delete: missing bookmark id.')),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete bookmark?'),
+        content: const Text('This will remove the bookmark and its photo.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await BookmarkApiService.deleteBookmarkByUuid(uuid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bookmark deleted.')));
+      _reload();
+    } catch (error) {
+      print(error);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete failed: $error')));
+    }
   }
 
   @override
@@ -37,8 +84,9 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
         actions: [
           IconButton(
             tooltip: 'Home',
-            onPressed: () => Navigator.of(context)
-                .pushNamedAndRemoveUntil('/', (route) => false),
+            onPressed: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false),
             icon: const Icon(Icons.home_outlined),
           ),
           IconButton(
@@ -83,10 +131,13 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
                   leading: const Icon(Icons.place_outlined),
                   title: Text(locationText),
                   subtitle: Text(item.timestamp.toLocal().toString()),
-                  trailing: item.imagePath == null
-                      ? null
-                      : IconButton(
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (item.imagePath != null)
+                        IconButton(
                           icon: const Icon(Icons.image_outlined),
+                          tooltip: 'Preview',
                           onPressed: () {
                             showDialog(
                               context: context,
@@ -96,6 +147,13 @@ class _BookmarkListPageState extends State<BookmarkListPage> {
                             );
                           },
                         ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        onPressed: () => _confirmDelete(item),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -297,19 +355,9 @@ class BookmarkMapPage extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('BookmarkMapPage: build');
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Location Map'),
-        actions: [
-          IconButton(
-            tooltip: 'Home',
-            onPressed: () => Navigator.of(context)
-                .pushNamedAndRemoveUntil('/', (route) => false),
-            icon: const Icon(Icons.home_outlined),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Location Map')),
       body: FutureBuilder<List<Bookmark>>(
-        future: BookmarkDatabase.instance.fetchBookmarks(),
+        future: BookmarkApiService.fetchBookmarks(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

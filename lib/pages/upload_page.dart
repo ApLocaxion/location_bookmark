@@ -6,11 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:heckofaheic/heckofaheic.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-import 'bookmark_data.dart';
 import 'exif_debug_page.dart';
-import 'image_store.dart';
+import '../services/bookmark_api_service.dart';
 
 enum UploadMode { capture, upload }
 
@@ -26,7 +26,6 @@ class UploadPage extends StatefulWidget {
 class _UploadPageState extends State<UploadPage> {
   final ImagePicker _picker = ImagePicker();
   Uint8List? _imageBytes;
-  String? _imagePath;
   double? _latitude;
   double? _longitude;
   DateTime? _timestamp;
@@ -37,7 +36,6 @@ class _UploadPageState extends State<UploadPage> {
   String? _cameraSource;
 
   Future<void> _pickImageFromGallery() async {
-    debugPrint('UploadPage: pick image (gallery) start');
     setState(() {
       _loading = true;
       _statusMessage = null;
@@ -61,14 +59,7 @@ class _UploadPageState extends State<UploadPage> {
       final tagLines = _dumpExifTags(tags);
       _logGpsXmpTags(tags);
       final cameraSource = _detectCameraSource(tags);
-      debugPrint('UploadPage: camera source=$cameraSource');
       final xmpRaw = _extractXmpMetadata(bytes);
-      if (xmpRaw != null) {
-        debugPrint('UploadPage: XMP length=${xmpRaw.length}');
-      } else {
-        debugPrint('UploadPage: XMP not found');
-      }
-      _logAllExif(tags, tagLines, xmpRaw);
 
       final gpsResult = _extractGps(tags, xmpRaw);
       final timestamp = _extractTimestamp(tags);
@@ -79,7 +70,6 @@ class _UploadPageState extends State<UploadPage> {
       );
 
       _applyPickedImage(
-        picked: picked,
         bytes: displayBytes,
         latitude: gpsResult.data?.latitude,
         longitude: gpsResult.data?.longitude,
@@ -127,7 +117,6 @@ class _UploadPageState extends State<UploadPage> {
           : 'Captured photo with current location.';
 
       _applyPickedImage(
-        picked: picked,
         bytes: displayBytes,
         latitude: position?.latitude,
         longitude: position?.longitude,
@@ -194,7 +183,6 @@ class _UploadPageState extends State<UploadPage> {
   }
 
   void _applyPickedImage({
-    required XFile picked,
     required Uint8List bytes,
     required double? latitude,
     required double? longitude,
@@ -204,12 +192,8 @@ class _UploadPageState extends State<UploadPage> {
     required String? cameraSource,
     required String statusMessage,
   }) {
-    debugPrint(
-      'UploadPage: apply picked image bytes=${bytes.length} lat=$latitude lon=$longitude ts=$timestamp',
-    );
     setState(() {
       _imageBytes = bytes;
-      _imagePath = kIsWeb ? null : picked.path;
       _latitude = latitude;
       _longitude = longitude;
       _timestamp = timestamp;
@@ -225,42 +209,97 @@ class _UploadPageState extends State<UploadPage> {
     debugPrint(
       'UploadPage: save bookmark lat=$_latitude lon=$_longitude ts=$_timestamp',
     );
-    if (_timestamp == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Missing timestamp metadata.')),
-      );
+    if (_latitude == null || _longitude == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Missing location data.')));
+      return;
+    }
+    if (_imageBytes == null || _imageBytes!.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Missing image data.')));
       return;
     }
 
-    var imagePath = _imagePath;
-    if (kIsWeb && imagePath == null && _imageBytes != null) {
-      try {
-        imagePath = await saveImageBytes(_imageBytes!);
-      } catch (error) {
-        debugPrint('UploadPage: save image failed: $error');
+    setState(() {
+      _loading = true;
+      _statusMessage = null;
+    });
+
+    try {
+      final imageByteLength = _imageBytes?.length ?? 0;
+      debugPrint(
+        'UploadPage: preparing upload bytes=$imageByteLength web=$kIsWeb',
+      );
+      final imageBase64 = base64Encode(_imageBytes!);
+      debugPrint(
+        'UploadPage: encoded image base64 length=${imageBase64.length}',
+      );
+      await BookmarkApiService.saveBookmark(
+        latitude: _latitude!,
+        longitude: _longitude!,
+        imageBase64: imageBase64,
+      );
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _statusMessage = 'Bookmark saved.';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bookmark saved.')));
+      Navigator.of(context).pushReplacementNamed('/list');
+    } catch (error) {
+      debugPrint('UploadPage: save bookmark failed: $error');
+      if (!mounted) return;
+      final message = _friendlySaveError(error);
+      setState(() {
+        _loading = false;
+        _statusMessage = message;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  String _friendlySaveError(Object error) {
+    if (_isNetworkError(error) || error is http.ClientException) {
+      return 'We could not reach the server. Check your internet connection and try again.';
+    }
+    if (error is StateError) {
+      final message = error.message ?? '';
+      final match = RegExp(r'API error:\s*(\d{3})').firstMatch(message);
+      final status = match == null ? null : int.tryParse(match.group(1) ?? '');
+      switch (status) {
+        case 400:
+          return 'The server rejected the request. Please try again.';
+        case 401:
+        case 403:
+          return 'You are not authorized to save bookmarks. Please sign in again.';
+        case 413:
+          return 'The image is too large to upload. Please choose a smaller image.';
+        case 429:
+          return 'Too many requests. Please wait a moment and try again.';
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          return 'The server is having trouble right now. Please try again later.';
       }
     }
+    return 'Failed to save bookmark. Please try again.';
+  }
 
-    final bookmark = Bookmark(
-      latitude: _latitude,
-      longitude: _longitude,
-      timestamp: _timestamp!,
-      imagePath: imagePath,
-    );
-
-    await BookmarkDatabase.instance.insertBookmark(bookmark);
-
-    if (!mounted) return;
-    final baseMessage = (_latitude == null || _longitude == null)
-        ? 'Bookmark saved without location data.'
-        : 'Bookmark saved.';
-    final message = (kIsWeb && imagePath == null)
-        ? '$baseMessage (Image not saved.)'
-        : baseMessage;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-    Navigator.of(context).pushReplacementNamed('/list');
+  bool _isNetworkError(Object error) {
+    final description = error.toString().toLowerCase();
+    return description.contains('socketexception') ||
+        description.contains('failed host lookup') ||
+        description.contains('network') ||
+        description.contains('timeout') ||
+        description.contains('timed out') ||
+        description.contains('failed to fetch');
   }
 
   @override
@@ -275,7 +314,7 @@ class _UploadPageState extends State<UploadPage> {
             tooltip: 'Home',
             onPressed: () => Navigator.of(
               context,
-            ).pushNamedAndRemoveUntil('/', (route) => false),
+            ).pushNamedAndRemoveUntil('/home', (route) => false),
             icon: const Icon(Icons.home_outlined),
           ),
           IconButton(
@@ -365,7 +404,6 @@ class _MetadataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('UploadPage: metadata card build');
     final latText = latitude == null ? 'Unknown' : latitude!.toStringAsFixed(6);
     final lonText = longitude == null
         ? 'Unknown'
@@ -416,7 +454,6 @@ class _GpsParseResult {
 }
 
 _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
-  debugPrint('UploadPage: extract GPS tags=${tags.length}');
   final latTag = _firstTag(tags, ['GPS GPSLatitude', 'GPSLatitude']);
   final lonTag = _firstTag(tags, ['GPS GPSLongitude', 'GPSLongitude']);
   if (latTag == null || lonTag == null) {
@@ -430,9 +467,6 @@ _GpsParseResult _extractGps(Map<String, IfdTag> tags, String? xmpRaw) {
   final latValues = latTag.values;
   final lonValues = lonTag.values;
 
-  debugPrint(
-    'UploadPage: raw GPS lat=${latTag.printable} lon=${lonTag.printable}',
-  );
   if (latValues.length < 3 || lonValues.length < 3) {
     return const _GpsParseResult(null, 'GPS metadata is incomplete.');
   }
@@ -504,7 +538,6 @@ DateTime? _extractTimestamp(Map<String, IfdTag> tags) {
 }
 
 double? _convertToDegrees(List values) {
-  debugPrint('UploadPage: convert to degrees values=$values');
   if (values.length < 3) return null;
   final deg = _ratioToDouble(values[0]);
   final min = _ratioToDouble(values[1]);
@@ -514,7 +547,6 @@ double? _convertToDegrees(List values) {
 }
 
 double? _ratioToDouble(dynamic value) {
-  debugPrint('UploadPage: ratio to double value=$value');
   if (value is Ratio) {
     if (value.denominator == 0) {
       return null;
@@ -534,39 +566,10 @@ double? _ratioToDouble(dynamic value) {
 }
 
 void _logGpsXmpTags(Map<String, IfdTag> tags) {
-  debugPrint('UploadPage: log GPS/XMP tags');
   final keys = tags.keys.toList()..sort();
   for (final key in keys) {
     final upper = key.toUpperCase();
-    if (upper.contains('GPS') || upper.contains('XMP')) {
-      debugPrint('UploadPage: tag $key=${tags[key]?.printable}');
-    }
-  }
-}
-
-void _logAllExif(
-  Map<String, IfdTag> tags,
-  List<String> tagLines,
-  String? xmpRaw,
-) {
-  debugPrint('UploadPage: EXIF tag count=${tags.length}');
-  for (final line in tagLines) {
-    debugPrint('UploadPage: exif $line');
-  }
-  if (xmpRaw == null || xmpRaw.isEmpty) {
-    debugPrint('UploadPage: XMP raw empty');
-    return;
-  }
-  debugPrint('UploadPage: XMP raw start');
-  _logLongString('UploadPage: xmp', xmpRaw);
-  debugPrint('UploadPage: XMP raw end');
-}
-
-void _logLongString(String prefix, String text, {int chunkSize = 800}) {
-  if (text.isEmpty) return;
-  for (var i = 0; i < text.length; i += chunkSize) {
-    final end = (i + chunkSize < text.length) ? i + chunkSize : text.length;
-    debugPrint('$prefix ${text.substring(i, end)}');
+    if (upper.contains('GPS') || upper.contains('XMP')) {}
   }
 }
 
@@ -654,7 +657,6 @@ double? _parseXmpCoordinate(String value, {required bool isLatitude}) {
 }
 
 IfdTag? _firstTag(Map<String, IfdTag> tags, List<String> keys) {
-  debugPrint('UploadPage: first tag lookup keys=$keys');
   for (final key in keys) {
     final tag = tags[key];
     if (tag != null) {

@@ -44,6 +44,9 @@ dependencies:
   flutter_map_cancellable_tile_provider: ^3.0.2
   heckofaheic: ^0.0.6
   latlong2: ^0.9.1
+  amazon_cognito_identity_dart_2: ^3.8.1
+  shared_preferences: ^2.2.3
+  http: ^1.2.1
 
 dev_dependencies:
   flutter_test:

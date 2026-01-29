@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key});
+import '../services/auth_storage.dart';
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('LoginPage: build');
+    debugPrint('HomePage: build');
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Locaxtion Bookmark'),
+        title: const Text('LocaXion Bookmark'),
         actions: [
           IconButton(
-            tooltip: 'Home',
-            onPressed: () => Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/', (route) => false),
-            icon: const Icon(Icons.home_outlined),
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await AuthStorage.clearAccessToken();
+              await AuthStorage.clearIdToken();
+              if (!context.mounted) return;
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
           ),
         ],
       ),
@@ -23,14 +30,14 @@ class LoginPage extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 460),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Icon(Icons.location_pin, size: 64),
                 const SizedBox(height: 16),
                 Text(
-                  'Locaxtion Bookmark',
+                  'LocaXion Bookmark',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
@@ -55,6 +62,14 @@ class LoginPage extends StatelessWidget {
                   },
                   icon: const Icon(Icons.map_outlined),
                   label: const Text('View Map'),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/list');
+                  },
+                  icon: const Icon(Icons.list_alt_outlined),
+                  label: const Text('View List'),
                 ),
                 const SizedBox(height: 12),
                 Text(
